@@ -9,7 +9,7 @@
 # All CSP options:
 # ~~~
 # [env:your_env]
-# csp_options =   
+# custom_csp_options =   
 #       disable-output            ; Disable CSP output
 #       enable-rdp                ; Enable RDP support
 #       enable-rdp-fast-close     ; Enable fast close of RDP connections
@@ -63,7 +63,7 @@ csp_options = {
 #Get env name (eg: uno, linux_x86_64, etc)
 env_name = env.get("PIOENV", None)
 # Get CSP Options of env
-csp_config = env.GetProjectConfig().get(f"env:{env_name}", "csp_options")
+csp_config = env.GetProjectConfig().get(f"env:{env_name}", "custom_csp_options")
 # Remove spaces, new-lines and tokenize
 csp_config = csp_config.replace(" ", "")
 csp_config = csp_config.split("\n")
@@ -125,12 +125,6 @@ if csp_options['with-os']:
     elif csp_options['with-os'] == 'windows':
         c_flags = ['-D_WIN32_WINNT=0x0600']
 
-
-# Check compiler endianness
-#endianness = ctx.check_endianness()
-##ctx.define_cond('CSP_LITTLE_ENDIAN', endianness == 'little')
-#ctx.define_cond('CSP_BIG_ENDIAN', endianness == 'big')
-print(env.get("CPPDEFINES", None))
 
 # Append everything to the env
 env.Append(SRC_FILTER=src_filter)
