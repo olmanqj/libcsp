@@ -90,7 +90,6 @@ if csp_options['with-rtable'] not in valid_rtable:
 
 # Setup Source Code Filters
 src_filter = [  "+<*.c>",
-                "+<external/**/*.c>",
                 "+<transport/**/*.c>",
                 "+<crypto/**/*.c>",
                 "+<interfaces/**/*.c>",
