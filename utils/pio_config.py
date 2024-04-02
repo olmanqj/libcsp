@@ -36,6 +36,8 @@ Import('env')
 valid_os = ['posix', 'windows', 'freertos', 'macosx']
 valid_loglevel = ['error', 'warn', 'info', 'debug']
 valid_rtable=['static', 'cidr']
+valid_driver_usart=['windows', 'linux', 'None']
+
 
 
 # All possible CSP options
@@ -87,6 +89,10 @@ if csp_options['with-loglevel'] not in valid_loglevel:
 if csp_options['with-rtable'] not in valid_rtable:
     raise Exception('--with-rtable must be either: ' + str(valid_rtable))
 
+if csp_options['with-driver-usart'] not in valid_driver_usart:
+    raise Exception('--with-driver-usart must be either: ' + str(valid_driver_usart))
+
+
 
 # Setup Source Code Filters
 src_filter = [  "+<*.c>",
@@ -111,7 +117,8 @@ if csp_options['enable-can-socketcan']:
 # Add USART driver
 if csp_options['with-driver-usart']:
     src_filter.append(f"+<drivers/usart/usart_kiss.c>")
-    src_filter.append(f"+<drivers/usart/usart_{csp_options['with-driver-usart']}.c>")
+    if csp_options['with-driver-usart'] != "None":
+        src_filter.append(f"+<drivers/usart/usart_{csp_options['with-driver-usart']}.c>")
 
 
 # Setup linking libs
