@@ -80,16 +80,16 @@ for item in csp_config:
 
 
 # Validate options
-if csp_options['with-os'] not in valid_os:
+if csp_options['with-os'] and csp_options['with-os'] not in valid_os:
     raise Exception('--with-os must be either: ' + str(valid_os))
 
-if csp_options['with-loglevel'] not in valid_loglevel:
+if csp_options['with-loglevel'] and csp_options['with-loglevel'] not in valid_loglevel:
     raise Exception('--with-loglevel must be either: ' + str(valid_loglevel))
 
-if csp_options['with-rtable'] not in valid_rtable:
+if csp_options['with-rtable'] and csp_options['with-rtable'] not in valid_rtable:
     raise Exception('--with-rtable must be either: ' + str(valid_rtable))
 
-if csp_options['with-driver-usart'] not in valid_driver_usart:
+if csp_options['with-driver-usart'] and csp_options['with-driver-usart'] not in valid_driver_usart:
     raise Exception('--with-driver-usart must be either: ' + str(valid_driver_usart))
 
 
