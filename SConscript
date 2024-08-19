@@ -1,37 +1,36 @@
-
-env = Environment()
-
-
-env.Append(CPPPATH=['include'])
+Import('env')
 
 
-AddOption('--includes', default='', help='Add additional include paths, separate with comma')
-AddOption('--install-csp', action='store_true', help='Installs CSP headers and lib')
+# Expose headers to SConstruct
+env.Append(CPPPATH=Glob('include'))
 
-AddOption('--disable-output', action='store_true', help='Disable CSP output')
-AddOption('--disable-print-stdio', action='store_true', help='Disable vprintf for csp_print_func')
-AddOption('--disable-stlib', action='store_true', help='Build objects only')
-AddOption('--enable-shlib', action='store_true', help='Build shared library')
-AddOption('--enable-rdp', action='store_true', help='Enable RDP support')
-AddOption('--enable-promisc', action='store_true', help='Enable promiscuous support')
-AddOption('--enable-crc32', action='store_true', help='Enable CRC32 support')
-AddOption('--enable-hmac', action='store_true', help='Enable HMAC-SHA1 support')
-AddOption('--enable-python3-bindings', action='store_true', help='Enable Python3 bindings')
-AddOption('--enable-examples', action='store_true', help='Enable examples')
-AddOption('--enable-dedup', action='store_true', help='Enable packet deduplicator')
-AddOption('--with-rdp-max-window', type=int, default=5, help='Set maximum window size for RDP')
-AddOption('--with-max-bind-port', type=int, default=16, help='Set maximum bindable port')
-AddOption('--with-max-connections', type=int, default=8, help='Set maximum number of connections')
-AddOption('--with-conn-queue-length', type=int, default=15, help='Set max connection queue length')
-AddOption('--with-router-queue-length', type=int, default=15, help='Set max router queue length')
-AddOption('--with-buffer-size', type=int, default=256, help='Set size of csp buffers')
-AddOption('--with-buffer-count', type=int, default=15, help='Set number of csp buffers')
-AddOption('--with-rtable-size', type=int, default=10, help='Set max number of entries in route table')
+
+
+AddOption('--install-csp',              action='store_true',   help='Installs CSP headers and lib')
+AddOption('--disable-output',           action='store_true',   help='Disable CSP output')
+AddOption('--disable-print-stdio',      action='store_true',   help='Disable vprintf for csp_print_func')
+AddOption('--disable-stlib',            action='store_true',   help='Build objects only')
+AddOption('--enable-shlib',             action='store_true',   help='Build shared library')
+AddOption('--enable-rdp',               action='store_true',   help='Enable RDP support')
+AddOption('--enable-promisc',           action='store_true',   help='Enable promiscuous support')
+AddOption('--enable-crc32',             action='store_true',   help='Enable CRC32 support')
+AddOption('--enable-hmac',              action='store_true',   help='Enable HMAC-SHA1 support')
+AddOption('--enable-python3-bindings',  action='store_true',   help='Enable Python3 bindings')
+AddOption('--enable-examples',          action='store_true',   help='Enable examples')
+AddOption('--enable-dedup',             action='store_true',   help='Enable packet deduplicator')
+AddOption('--with-rdp-max-window',      type=int, default=5,   help='Set maximum window size for RDP')
+AddOption('--with-max-bind-port',       type=int, default=16,  help='Set maximum bindable port')
+AddOption('--with-max-connections',     type=int, default=8,   help='Set maximum number of connections')
+AddOption('--with-conn-queue-length',   type=int, default=15,  help='Set max connection queue length')
+AddOption('--with-router-queue-length', type=int, default=15,  help='Set max router queue length')
+AddOption('--with-buffer-size',         type=int, default=256, help='Set size of csp buffers')
+AddOption('--with-buffer-count',        type=int, default=15,  help='Set number of csp buffers')
+AddOption('--with-rtable-size',         type=int, default=10,  help='Set max number of entries in route table')
 
 # Drivers and interfaces (requires external dependencies)
-AddOption('--enable-if-zmqhub', action='store_true', help='Enable ZMQ interface')
+AddOption('--enable-if-zmqhub',     action='store_true', help='Enable ZMQ interface')
 AddOption('--enable-can-socketcan', action='store_true', help='Enable Linux socketcan driver')
-AddOption('--with-driver-usart', default=None, metavar='DRIVER', help='Build USART driver. [linux, None]')
+AddOption('--with-driver-usart',    default=None, metavar='DRIVER', help='Build USART driver. [linux, None]')
 
 # OS
 valid_os = ['posix', 'freertos']
@@ -68,8 +67,8 @@ src_files = ['src/crypto/csp_hmac.c',
                 'src/interfaces/csp_if_can_pbuf.c',
                 'src/interfaces/csp_if_kiss.c',
                 'src/interfaces/csp_if_i2c.c',
-                'src/arch/{0}/**/*.c'.format(env.GetOption('with_os')),
-                'src/csp_rtable_cidr.c']
+                'src/csp_rtable_cidr.c',
+                Glob('src/arch/{0}/*.c'.format(env.GetOption('with_os')))]
 
 
 conf = Configure(env)
@@ -103,5 +102,4 @@ if env.GetOption('enable_if_zmqhub'):
 env = conf.Finish()
 
 env.Library('csp', src_files, LIBS = libs)
-
 
