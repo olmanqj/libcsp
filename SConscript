@@ -1,5 +1,6 @@
 Import('env')
 
+VERSION = '2.0'
 
 # Expose headers to SConstruct
 env.Append(CPPPATH=Glob('include'))
@@ -15,8 +16,6 @@ AddOption('--enable-rdp',               action='store_true',   help='Enable RDP 
 AddOption('--enable-promisc',           action='store_true',   help='Enable promiscuous support')
 AddOption('--enable-crc32',             action='store_true',   help='Enable CRC32 support')
 AddOption('--enable-hmac',              action='store_true',   help='Enable HMAC-SHA1 support')
-AddOption('--enable-python3-bindings',  action='store_true',   help='Enable Python3 bindings')
-AddOption('--enable-examples',          action='store_true',   help='Enable examples')
 AddOption('--enable-dedup',             action='store_true',   help='Enable packet deduplicator')
 AddOption('--with-rdp-max-window',      type=int, default=5,   help='Set maximum window size for RDP')
 AddOption('--with-max-bind-port',       type=int, default=16,  help='Set maximum bindable port')
@@ -83,7 +82,7 @@ if conf.CheckCHeader("sys/socket.h") and conf.CheckCHeader("arpa/inet.h"):
 
 # Add socketcan
 if env.GetOption('enable_can_socketcan'):
-    src_files.append('src/drivers/can/can_socketcan.c')
+    src_files += ['src/drivers/can/can_socketcan.c']
     #ctx.check_cfg(package='libsocketcan', args='--cflags --libs', define_name='CSP_HAVE_LIBSOCKETCAN') #TODO
     libs += ['socketcan']
 
@@ -101,5 +100,11 @@ if env.GetOption('enable_if_zmqhub'):
 
 env = conf.Finish()
 
-env.Library('csp', src_files, LIBS = libs)
 
+env.StaticLibrary('csp', src_files, LIBS = libs)
+
+if env.GetOption('enable_shlib'):
+    csp = env.SharedLibrary('csp', src_files, LIBS = libs,  SHLIBVERSION=VERSION)
+
+#if env.GetOption('install_csp'):
+#    Default(env.InstallVersionedLib(target="/usr/lib", source=csp))
