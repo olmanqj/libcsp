@@ -133,7 +133,7 @@ csp_defines.append("#endif /* W_CSP_AUTOCONFIG_H_WAF */")
 env.Textfile(target = 'include/csp_autoconfig.h', source = csp_defines)
 
 # Build Static Lib
-env.StaticLibrary('csp', src_files, LIBS = libs)
+env.Library('csp', src_files, LIBS = libs)
 
 # Build Shared lib
 if env.GetOption('enable_shlib'):
