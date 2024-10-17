@@ -1,4 +1,4 @@
 
 env = Environment()
 Export('env')
-SConscript('#/SConscript')
+SConscript('#/SConscript', variant_dir = "build")

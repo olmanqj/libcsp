@@ -1,4 +1,7 @@
 build
+.sconf_temp
+config.log
+.sconsign.dblite
 *.swp
 .lock*
 .waf*
