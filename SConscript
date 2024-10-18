@@ -136,12 +136,12 @@ env.Textfile(target = 'include/csp_autoconfig.h', source = csp_defines)
 env.Library('csp', src_files, LIBS = libs)
 
 # Build Shared lib
-#if env.GetOption('enable_shlib'):
-csp = env.SharedLibrary('csp', src_files, LIBS = libs,  SHLIBVERSION=VERSION)
+if env.GetOption('enable_shlib'):
+    csp = env.SharedLibrary('csp', src_files, LIBS = libs,  SHLIBVERSION=VERSION)
 
-# install with $ scons install
-env.InstallVersionedLib(target="/usr/lib", source=csp)
-env.Alias('install', '/usr/lib')
+    # install with $ scons install
+    env.InstallVersionedLib(target="/usr/lib", source=csp)
+    env.Alias('install', '/usr/lib')
 
 
 
