@@ -68,27 +68,21 @@ src_files = ['src/crypto/csp_hmac.c',
                 'src/csp_rtable_cidr.c']
 
 
-csp_defines = [
-    "#ifndef CSP_AUTOCONFIG_H", 
-    "#define CSP_AUTOCONFIG_H"
-]
-
-
-
-conf = Configure(env)
+# Generate csp_autoconfig
+conf=Configure(env, config_h='include/csp_autoconfig.h')
 
 # Select OS related source
 if env.GetOption('with_os') == "posix":
     src_files +=  Glob('src/arch/posix/*.c')
-    csp_defines.append("#define CSP_POSIX 1")
+    conf.Define("CSP_POSIX", 1)
 elif env.GetOption('with_os') == "freertos":
     src_files +=  Glob('src/arch/freertos/*.c')
-    csp_defines.append("#define CSP_FREERTOS 1")
+    conf.Define("CSP_FREERTOS", 1)
 
 # Add if stdio
 if conf.CheckCHeader('stdio.h'):
     src_files += ['src/csp_rtable_stdio.c']
-    csp_defines.append("#define CSP_HAVE_STDIO 1")
+    conf.Define("CSP_HAVE_STDIO", 1)
 
 # Add if UDP
 if conf.CheckCHeader("sys/socket.h") and conf.CheckCHeader("arpa/inet.h"):
@@ -97,7 +91,7 @@ if conf.CheckCHeader("sys/socket.h") and conf.CheckCHeader("arpa/inet.h"):
 # Add socketcan
 if env.GetOption('enable_can_socketcan'):
     src_files += ['src/drivers/can/can_socketcan.c']
-    csp_defines.append("#define CSP_HAVE_LIBSOCKETCAN 1")
+    conf.Define("CSP_HAVE_LIBSOCKETCAN", 1)
     libs += ['socketcan']
 
 # Add USART driver
@@ -107,30 +101,25 @@ if env.GetOption('with_driver_usart'):
 
 # Add ZMQ
 if env.GetOption('enable_if_zmqhub'):
-    csp_defines.append("#define CSP_HAVE_LIBZMQ 1")
+    conf.Define("CSP_HAVE_LIBZMQ", 1)
     src_files += [ 'src/interfaces/csp_if_zmqhub.c']
     libs += ['zmq']
 
+conf.Define("CSP_QFIFO_LEN",              env.GetOption("with_router_queue_length"))
+conf.Define("CSP_PORT_MAX_BIND",          env.GetOption("with_max_bind_port"))
+conf.Define("CSP_CONN_RXQUEUE_LEN",       env.GetOption("with_conn_queue_length"))
+conf.Define("CSP_CONN_MAX",               env.GetOption("with_max_connections"))
+conf.Define("CSP_BUFFER_SIZE",            env.GetOption("with_buffer_size"))
+conf.Define("CSP_BUFFER_COUNT",           env.GetOption("with_buffer_count"))
+conf.Define("CSP_RDP_MAX_WINDOW",         env.GetOption("with_rdp_max_window"))
+conf.Define("CSP_RTABLE_SIZE",            env.GetOption("with_rtable_size"))
+conf.Define("CSP_ENABLE_CSP_PRINT",   int(not env.GetOption("disable_output")))
+conf.Define("CSP_PRINT_STDIO",        int(not env.GetOption("disable_print_stdio")))
+conf.Define("CSP_USE_RDP",            int(env.GetOption("enable_rdp")))
+conf.Define("CSP_USE_HMAC",           int(env.GetOption("enable_hmac")))
+conf.Define("CSP_USE_PROMISC",        int(env.GetOption("enable_promisc")))
+conf.Define("CSP_USE_DEDUP",          int(env.GetOption("enable_dedup")))
 env = conf.Finish()
-
-
-# Generate csp_autoconfig
-csp_defines.append("#define CSP_QFIFO_LEN {}".format(             env.GetOption("with_router_queue_length")))
-csp_defines.append("#define CSP_PORT_MAX_BIND {}".format(         env.GetOption("with_max_bind_port")))
-csp_defines.append("#define CSP_CONN_RXQUEUE_LEN {}".format(      env.GetOption("with_conn_queue_length")))
-csp_defines.append("#define CSP_CONN_MAX {}".format(              env.GetOption("with_max_connections")))
-csp_defines.append("#define CSP_BUFFER_SIZE {}".format(           env.GetOption("with_buffer_size")))
-csp_defines.append("#define CSP_BUFFER_COUNT {}".format(          env.GetOption("with_buffer_count")))
-csp_defines.append("#define CSP_RDP_MAX_WINDOW {}".format(        env.GetOption("with_rdp_max_window")))
-csp_defines.append("#define CSP_RTABLE_SIZE {}".format(           env.GetOption("with_rtable_size")))
-csp_defines.append("#define CSP_ENABLE_CSP_PRINT {}".format(  int(not env.GetOption("disable_output"))))
-csp_defines.append("#define CSP_PRINT_STDIO {}".format(       int(not env.GetOption("disable_print_stdio"))))
-csp_defines.append("#define CSP_USE_RDP {}".format(           int(env.GetOption("enable_rdp"))))
-csp_defines.append("#define CSP_USE_HMAC {}".format(          int(env.GetOption("enable_hmac"))))
-csp_defines.append("#define CSP_USE_PROMISC {}".format(       int(env.GetOption("enable_promisc"))))
-csp_defines.append("#define CSP_USE_DEDUP {}".format(         int(env.GetOption("enable_dedup"))))
-csp_defines.append("#endif /* W_CSP_AUTOCONFIG_H_WAF */")
-env.Textfile(target = 'include/csp_autoconfig.h', source = csp_defines)
 
 # Build Static Lib
 env.Library('csp', src_files, LIBS = libs)
