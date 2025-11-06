@@ -1,0 +1,9 @@
+[package]
+name = "libcsp"
+version = "2.1.0"
+
+
+
+
+[build-dependencies]
+bindgen = "0.71.0"
