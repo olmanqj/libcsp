@@ -2,13 +2,6 @@ use std::env;
 use std::path::PathBuf;
 
 fn main() {
-    // Tell cargo to look for shared libraries in the specified directory
-//println!("cargo:rustc-link-search=build");
-
-    // Tell cargo to tell rustc to link the system libcsp
-    // shared library.
-//println!("cargo:rustc-link-lib=libcsp");
-
     // The bindgen::Builder is the main entry point
     // to bindgen, and lets you build up options for
     // the resulting bindings.
@@ -16,6 +9,8 @@ fn main() {
         // The input header we would like to generate
         // bindings for.
         .header("src/bindings/rust/bindings.h")
+        .clang_arg("-Iinclude/")
+        .clang_arg("-Ibuild/include/")
         // Tell cargo to invalidate the built crate whenever any of the
         // included header files changed.
         .parse_callbacks(Box::new(bindgen::CargoCallbacks::new()))
@@ -25,8 +20,22 @@ fn main() {
         .expect("Unable to generate bindings");
 
     // Write the bindings to the $OUT_DIR/bindings.rs file.
-    let out_path = PathBuf::from(env::var("OUT_DIR").unwrap());
+    // let out_path = PathBuf::from(env::var("OUT_DIR").unwrap());
+    // bindings
+    //     .write_to_file(out_path.join("bindings.rs"))
+    //     .expect("Couldn't write bindings!");
+
     bindings
-        .write_to_file(out_path.join("bindings.rs"))
+        .write_to_file("build/bindings.rs")
         .expect("Couldn't write bindings!");
+
+
+    // Tell cargo to look for shared libraries in the specified directory
+    println!("cargo:rustc-link-search=build");
+
+    // Tell cargo to tell rustc to link the system libcsp
+    // shared library.
+    println!("cargo:rustc-link-lib=csp");
+
+
 }

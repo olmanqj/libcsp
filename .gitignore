@@ -24,3 +24,8 @@ GRTAGS
 GTAGS
 .vscode/
 build-docs
+
+
+# Added by cargo
+
+/target
