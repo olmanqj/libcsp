@@ -3,6 +3,7 @@
 #include <csp/drivers/can_socketcan.h>
 
 #include <stdio.h>
+#include <string.h>
 #include <pthread.h>
 #include <stdlib.h>
 #include <csp/csp_debug.h>
@@ -17,6 +18,7 @@
 #include <libsocketcan.h>
 
 #include <csp/csp.h>
+#include <csp/csp_id.h>
 
 // CAN interface data, state, etc.
 typedef struct {
@@ -46,8 +48,9 @@ static void * socketcan_rx_thread(void * arg) {
 		fd_set input;
 		FD_ZERO(&input);
 		FD_SET(ctx->socket, &input);
-		struct timeval timeout;
-		timeout.tv_sec = 10;
+		struct timeval timeout = {
+			.tv_sec = 10,
+		};
 		int n = select(ctx->socket + 1, &input, NULL, NULL, &timeout);
 		if (n == -1) {
 			csp_print("CAN read error\n");
@@ -120,7 +123,7 @@ static int csp_can_tx_frame(void * driver_data, uint32_t id, const uint8_t * dat
 
 	while (pdata < pend) {
 		int written;
-		
+
 		written = write(ctx->socket, (void *)pdata, length);
 		if (written < 0) {
 			if (errno == ENOBUFS) {
@@ -151,27 +154,35 @@ static int csp_can_tx_frame(void * driver_data, uint32_t id, const uint8_t * dat
 }
 
 
-int csp_can_socketcan_set_promisc(const bool promisc, can_context_t * ctx) {
-	struct can_filter filter = {
+static int csp_can_socketcan_set_promisc(const bool promisc, can_context_t * ctx) {
+
+	struct can_filter filter[3] = { {
 		.can_id = CFP_MAKE_DST(ctx->iface.addr),
 		.can_mask = 0x0000, /* receive anything */
-	};
+	} };
 
 	if (ctx->socket == 0) {
 		return CSP_ERR_INVAL;
 	}
 
+	int num_filters = 1;
 	if (!promisc) {
 		if (csp_conf.version == 1) {
-			filter.can_id = CFP_MAKE_DST(ctx->iface.addr);
-			filter.can_mask = CFP_MAKE_DST((1 << CFP_HOST_SIZE) - 1);
+			num_filters = 1;
+			filter[0].can_id = CFP_MAKE_DST(ctx->iface.addr);
+			filter[0].can_mask = CFP_MAKE_DST((1 << CFP_HOST_SIZE) - 1);
 		} else {
-			filter.can_id = ctx->iface.addr << CFP2_DST_OFFSET;
-			filter.can_mask = CFP2_DST_MASK << CFP2_DST_OFFSET;
+			num_filters = 3;
+			filter[0].can_id = ctx->iface.addr << CFP2_DST_OFFSET;
+			filter[0].can_mask = CFP2_DST_MASK << CFP2_DST_OFFSET;
+			filter[1].can_id = ((1 << (csp_id_get_host_bits() - ctx->iface.netmask)) - 1) << CFP2_DST_OFFSET;
+			filter[1].can_mask = CFP2_DST_MASK << CFP2_DST_OFFSET;
+			filter[2].can_id = 0x3FFF << CFP2_DST_OFFSET;
+			filter[2].can_mask = CFP2_DST_MASK << CFP2_DST_OFFSET;
 		}
 	}
 
-	if (setsockopt(ctx->socket, SOL_CAN_RAW, CAN_RAW_FILTER, &filter, sizeof(filter)) < 0) {
+	if (setsockopt(ctx->socket, SOL_CAN_RAW, CAN_RAW_FILTER, &filter, num_filters * sizeof(struct can_filter)) < 0) {
 		csp_print("%s: setsockopt() failed, error: %s\n", __func__, strerror(errno));
 		return CSP_ERR_INVAL;
 	}
@@ -179,6 +190,39 @@ int csp_can_socketcan_set_promisc(const bool promisc, can_context_t * ctx) {
 	return CSP_ERR_NONE;
 }
 
+static int csp_can_socketcan_add_alias(void * driver_data, uint16_t addr) {
+
+	if (csp_conf.version == 1) {
+		return -1;
+	}
+
+	can_context_t * ctx = driver_data;
+
+	struct can_filter filter[10];
+	socklen_t len = sizeof(filter);
+
+	getsockopt(ctx->socket, SOL_CAN_RAW, CAN_RAW_FILTER, &filter, &len);
+
+	/* Current implementation has a defined maximum of filters available */
+	if (len == sizeof(filter)) {
+		return -2;
+	}
+
+	/* If only 1 filter exist for CSP v2, interface is promisc */
+	if (len == sizeof(struct can_filter)) {
+		return 0;
+	}
+
+	/* Add filter for specific additional receive address */
+	filter[len/sizeof(struct can_filter)].can_id = addr << CFP2_DST_OFFSET;
+	filter[len/sizeof(struct can_filter)].can_mask = CFP2_DST_MASK << CFP2_DST_OFFSET;;
+
+	if (setsockopt(ctx->socket, SOL_CAN_RAW, CAN_RAW_FILTER, &filter, len + sizeof(struct can_filter)) < 0) {
+		return -2;
+	}
+
+	return 0;
+}
 
 int csp_can_socketcan_open_and_add_interface(const char * device, const char * ifname, unsigned int node_id, int bitrate, bool promisc, csp_iface_t ** return_iface) {
 	if (ifname == NULL) {
@@ -207,6 +251,7 @@ int csp_can_socketcan_open_and_add_interface(const char * device, const char * i
 	ctx->iface.interface_data = &ctx->ifdata;
 	ctx->iface.driver_data = ctx;
 	ctx->ifdata.tx_func = csp_can_tx_frame;
+	ctx->iface.add_alias = csp_can_socketcan_add_alias;
 	ctx->ifdata.pbufs = NULL;
 
 	/* Create socket */
@@ -241,6 +286,7 @@ int csp_can_socketcan_open_and_add_interface(const char * device, const char * i
 	/* Set filter mode */
 	if (csp_can_socketcan_set_promisc(promisc, ctx) != CSP_ERR_NONE) {
 		csp_print("%s[%s]: csp_can_socketcan_set_promisc() failed, error: %s\n", __func__, ctx->name, strerror(errno));
+		socketcan_free(ctx);
 		return CSP_ERR_INVAL;
 	}
 
@@ -255,7 +301,8 @@ int csp_can_socketcan_open_and_add_interface(const char * device, const char * i
 	/* Create receive thread */
 	if (pthread_create(&ctx->rx_thread, NULL, socketcan_rx_thread, ctx) != 0) {
 		csp_print("%s[%s]: pthread_create() failed, error: %s\n", __func__, ctx->name, strerror(errno));
-		// socketcan_free(ctx); // we already added it to CSP (no way to remove it)
+		(void)csp_can_remove_interface(&ctx->iface);
+		socketcan_free(ctx);
 		return CSP_ERR_NOMEM;
 	}
 

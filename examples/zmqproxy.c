@@ -1,8 +1,10 @@
 #include <unistd.h>
 #include <stdlib.h>
+#include <string.h>
 #include <zmq.h>
 #include <assert.h>
 #include <pthread.h>
+#include <inttypes.h>
 
 #include <csp/csp.h>
 #include <csp/csp_id.h>

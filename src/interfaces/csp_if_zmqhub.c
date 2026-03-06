@@ -5,6 +5,7 @@
 #include <zmq.h>
 #include <assert.h>
 #include <stdlib.h>
+#include <string.h>
 
 #include <csp/csp.h>
 #include <csp/csp_debug.h>
@@ -25,6 +26,9 @@ typedef struct {
 	void * context;
 	void * publisher;
 	void * subscriber;
+	/* We must allocate filters per interface, as ZMQ does not copy the filter value to the
+		outgoing packet for each setsockopt call. */
+	uint16_t filt[4][3];
 	char name[CSP_IFLIST_NAME_MAX + 1];
 	csp_iface_t iface;
 } zmq_driver_t;
@@ -76,7 +80,7 @@ void * csp_zmqhub_fixup_cspv1_del_dest_addr(uint8_t * rx_data, size_t * datalen)
  * @param packet Packet to transmit
  * @return 1 if packet was successfully transmitted, 0 on error
  */
-int csp_zmqhub_tx(csp_iface_t * iface, uint16_t __maybe_unused via, csp_packet_t * packet, int __maybe_unused from_me) {
+static int csp_zmqhub_tx(csp_iface_t * iface, uint16_t __maybe_unused via, csp_packet_t * packet, int __maybe_unused from_me) {
 
 	zmq_driver_t * drv = iface->driver_data;
 
@@ -99,7 +103,7 @@ int csp_zmqhub_tx(csp_iface_t * iface, uint16_t __maybe_unused via, csp_packet_t
 	return CSP_ERR_NONE;
 }
 
-void * csp_zmqhub_task(void * param) {
+static void * csp_zmqhub_task(void * param) {
 
 	zmq_driver_t * drv = param;
 	csp_packet_t * packet;
@@ -252,7 +256,9 @@ int csp_zmqhub_init_w_name_endpoints_rxfilter(const char * ifname, uint16_t addr
 	assert(ret == 0);
 	ret = pthread_create(&drv->rx_thread, &attributes, csp_zmqhub_task, drv);
 	assert(ret == 0);
-
+	ret = pthread_attr_destroy(&attributes);
+	assert(ret == 0);
+	(void)ret;
 	/* Register interface */
 	csp_iflist_add(&drv->iface);
 
@@ -263,7 +269,86 @@ int csp_zmqhub_init_w_name_endpoints_rxfilter(const char * ifname, uint16_t addr
 	return CSP_ERR_NONE;
 }
 
+int csp_zmqhub_remove_filters(csp_iface_t * zmq_iface) {
+
+	if(zmq_iface == NULL || zmq_iface->driver_data == NULL || zmq_iface->nexthop != csp_zmqhub_tx) {
+		return -1;
+	}
+
+	int ret = 0;
+	zmq_driver_t * drv = zmq_iface->driver_data;
+	const uint16_t addr = zmq_iface->addr;
+	const uint16_t hostmask = (1 << (csp_id_get_host_bits() - zmq_iface->netmask)) - 1;
+
+	/* Unsubscribe from any current filters */
+	for (int i = 0; i < 4; i++) {
+		//int i = CSP_PRIO_NORM;
+		drv->filt[i][0] = __builtin_bswap16((i << 14) | addr);
+		drv->filt[i][1] = __builtin_bswap16((i << 14) | addr | hostmask);
+		drv->filt[i][2] = __builtin_bswap16((i << 14) | 16383);
+		ret = zmq_setsockopt(drv->subscriber, ZMQ_UNSUBSCRIBE, &drv->filt[i][0], 2);
+		ret = zmq_setsockopt(drv->subscriber, ZMQ_UNSUBSCRIBE, &drv->filt[i][1], 2);
+		ret = zmq_setsockopt(drv->subscriber, ZMQ_UNSUBSCRIBE, &drv->filt[i][2], 2);
+	}
+
+	/* subscribe to all packets - no filter */
+	ret = zmq_setsockopt(drv->subscriber, ZMQ_SUBSCRIBE, NULL, 0);
+	assert(ret == 0);
+	return ret;
+}
+
+static int csp_zmqhub_add_filter(void * driver_data, uint16_t addr) {
+
+	int ret = 0;
+	zmq_driver_t * drv = (zmq_driver_t*)driver_data;
+
+	/* Subscribe to an extra address, typically registered by alias address */
+	for (int i = 0; i < 4; i++) {
+		uint16_t filter = __builtin_bswap16((i << 14) | addr);
+		ret = zmq_setsockopt(drv->subscriber, ZMQ_SUBSCRIBE, &filter, 2);
+		assert(ret == 0);
+	}
+	return ret;
+}
+
+int csp_zmqhub_add_filters(csp_iface_t * zmq_iface) {
+
+	if(zmq_iface == NULL || zmq_iface->driver_data == NULL || zmq_iface->nexthop != csp_zmqhub_tx) {
+		return -1;
+	}
+	int ret = 0;
+	zmq_driver_t * drv = zmq_iface->driver_data;
+	const uint16_t addr = zmq_iface->addr;
+	const uint16_t hostmask = (1 << (csp_id_get_host_bits() - zmq_iface->netmask)) - 1;
+
+	/* Unsubscribe to all packets */
+	ret = zmq_setsockopt(drv->subscriber, ZMQ_UNSUBSCRIBE, NULL, 0);
+	assert(ret == 0);
+
+	/* Subscribe to unpromiscuous filters */
+	for (int i = 0; i < 4; i++) {
+		//int i = CSP_PRIO_NORM;
+		drv->filt[i][0] = __builtin_bswap16((i << 14) | addr);
+		drv->filt[i][1] = __builtin_bswap16((i << 14) | addr | hostmask);
+		drv->filt[i][2] = __builtin_bswap16((i << 14) | 16383);
+		ret = zmq_setsockopt(drv->subscriber, ZMQ_SUBSCRIBE, &drv->filt[i][0], 2);
+		ret = zmq_setsockopt(drv->subscriber, ZMQ_SUBSCRIBE, &drv->filt[i][1], 2);
+		ret = zmq_setsockopt(drv->subscriber, ZMQ_SUBSCRIBE, &drv->filt[i][2], 2);
+	}
+	assert(ret == 0);
+	return ret;
+}
+
 int csp_zmqhub_init_filter2(const char * ifname, const char * host, uint16_t addr, uint16_t netmask, int promisc, csp_iface_t ** return_interface, char * sec_key, uint16_t subport, uint16_t pubport) {
+
+	/* ZMQ will cause valgrind errors if `sec_key` isn't exactly 40 characters long.
+		For now we deliberately parse an empty string as if no sec_key was specified. */
+	const ssize_t sec_key_len = sec_key ? strnlen(sec_key, CURVE_KEYLEN-1) : 0;
+	if (sec_key_len && sec_key_len != CURVE_KEYLEN-1) {
+		/* Is it bad to expose the detected length of the ZMQ key here? */
+		fprintf(stderr, "ZMQ secret key must be exactly 40 characters long (got %ld)\n", sec_key_len);
+		return CSP_ERR_INVAL;
+	}
 
 	char pub[100];
 	csp_zmqhub_make_endpoint(host, subport, pub, sizeof(pub));
@@ -284,6 +369,10 @@ int csp_zmqhub_init_filter2(const char * ifname, const char * host, uint16_t add
 	drv->iface.name = drv->name;
 	drv->iface.driver_data = drv;
 	drv->iface.nexthop = csp_zmqhub_tx;
+	drv->iface.add_alias = csp_zmqhub_add_filter;
+
+	drv->iface.addr = addr;
+	drv->iface.netmask = netmask;
 
 	drv->context = zmq_ctx_new();
 	assert(drv->context != NULL);
@@ -299,8 +388,8 @@ int csp_zmqhub_init_filter2(const char * ifname, const char * host, uint16_t add
 	assert(drv->subscriber != NULL);
 
 	/* If shared secret key provided */
-	if (sec_key) {
-		char pub_key[41];
+	if (sec_key_len) {
+		char pub_key[CURVE_KEYLEN];
 
 		zmq_curve_public(pub_key, sec_key);
 		/* Publisher (TX) */
@@ -330,38 +419,19 @@ int csp_zmqhub_init_filter2(const char * ifname, const char * host, uint16_t add
 	zmq_setsockopt(drv->subscriber, ZMQ_TCP_KEEPALIVE_CNT, &cnt, sizeof(cnt));
 	zmq_setsockopt(drv->subscriber, ZMQ_TCP_KEEPALIVE_INTVL, &intvl, sizeof(intvl));
 
-	/* Generate filters */
-	uint16_t hostmask = (1 << (csp_id_get_host_bits() - netmask)) - 1;
-
 	/* Connect to server */
 	ret = zmq_connect(drv->publisher, pub);
 	assert(ret == 0);
 	ret = zmq_connect(drv->subscriber, sub);
 	assert(ret == 0);
-
+	(void)ret;
 
 	if (promisc) {
-
 		// subscribe to all packets - no filter
-		ret = zmq_setsockopt(drv->subscriber, ZMQ_SUBSCRIBE, NULL, 0);
-		assert(ret == 0);
+		csp_zmqhub_remove_filters(&drv->iface);
 
 	} else {
-
-		/* This needs to be static, because ZMQ does not copy the filter value to the
-		 * outgoing packet for each setsockopt call */
-		static uint16_t filt[4][3];
-
-		for (int i = 0; i < 4; i++) {
-			//int i = CSP_PRIO_NORM;
-			filt[i][0] = __builtin_bswap16((i << 14) | addr);
-			filt[i][1] = __builtin_bswap16((i << 14) | addr | hostmask);
-			filt[i][2] = __builtin_bswap16((i << 14) | 16383);
-			ret = zmq_setsockopt(drv->subscriber, ZMQ_SUBSCRIBE, &filt[i][0], 2);
-			ret = zmq_setsockopt(drv->subscriber, ZMQ_SUBSCRIBE, &filt[i][1], 2);
-			ret = zmq_setsockopt(drv->subscriber, ZMQ_SUBSCRIBE, &filt[i][2], 2);
-		}
-
+		csp_zmqhub_add_filters(&drv->iface);
 	}
 
 
@@ -371,6 +441,8 @@ int csp_zmqhub_init_filter2(const char * ifname, const char * host, uint16_t add
 	ret = pthread_attr_setdetachstate(&attributes, PTHREAD_CREATE_DETACHED);
 	assert(ret == 0);
 	ret = pthread_create(&drv->rx_thread, &attributes, csp_zmqhub_task, drv);
+	assert(ret == 0);
+	ret = pthread_attr_destroy(&attributes);
 	assert(ret == 0);
 
 	/* Register interface */

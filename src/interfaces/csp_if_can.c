@@ -1,5 +1,3 @@
-
-
 #include <csp/interfaces/csp_if_can.h>
 
 #include <string.h>
@@ -43,15 +41,7 @@ enum cfp_frame_t {
 	CFP_MORE = 1
 };
 
-int csp_can1_rx(csp_iface_t * iface, uint32_t id, const uint8_t * data, uint8_t dlc, int * task_woken) {
-
-	/* Test: random packet loss */
-	// if (0) {
-	// 	int random = rand();
-	// 	if (random < RAND_MAX * 0.00005) {
-	// 		return CSP_ERR_DRIVER;
-	// 	}
-	// }
+static int csp_can1_rx(csp_iface_t * iface, uint32_t id, const uint8_t * data, uint8_t dlc, int * task_woken) {
 
 	csp_can_interface_data_t * ifdata = iface->interface_data;
 
@@ -86,8 +76,6 @@ int csp_can1_rx(csp_iface_t * iface, uint32_t id, const uint8_t * data, uint8_t 
 			/* Copy CSP identifier (header) */
 			memcpy(packet->frame_begin, data, sizeof(uint32_t));
 			packet->frame_length += sizeof(uint32_t);
-
-			csp_id_strip(packet);
 
 			/* Copy CSP length (of data) */
 			memcpy(&(packet->length), data + sizeof(uint32_t), sizeof(packet->length));
@@ -140,6 +128,11 @@ int csp_can1_rx(csp_iface_t * iface, uint32_t id, const uint8_t * data, uint8_t 
 			if (packet->rx_count != packet->length)
 				break;
 
+			/* Length information is packed differently for CAN */
+			uint16_t length = packet->length;
+			csp_id_strip(packet);
+			packet->length = length;
+
 			/* Rewrite incoming L2 broadcast to local node */
 			if (packet->id.dst == 0x1F) {
 				packet->id.dst = iface->addr;
@@ -162,7 +155,8 @@ int csp_can1_rx(csp_iface_t * iface, uint32_t id, const uint8_t * data, uint8_t 
 	return CSP_ERR_NONE;
 }
 
-int csp_can1_tx(csp_iface_t * iface, uint16_t via, csp_packet_t * packet, int from_me) {
+static int csp_can1_tx(csp_iface_t * iface, uint16_t via, csp_packet_t * packet, int from_me) {
+	(void)from_me; /* Avoid compiler warnings about unused parameter */
 
 	/* Loopback */
 	if (packet->id.dst == iface->addr) {
@@ -258,7 +252,7 @@ int csp_can1_tx(csp_iface_t * iface, uint16_t via, csp_packet_t * packet, int fr
 	return CSP_ERR_NONE;
 }
 
-int csp_can2_rx(csp_iface_t * iface, uint32_t id, const uint8_t * data, uint8_t dlc, int * task_woken) {
+static int csp_can2_rx(csp_iface_t * iface, uint32_t id, const uint8_t * data, uint8_t dlc, int * task_woken) {
 
 	csp_can_interface_data_t * ifdata = iface->interface_data;
 
@@ -362,10 +356,13 @@ int csp_can2_rx(csp_iface_t * iface, uint32_t id, const uint8_t * data, uint8_t 
 	return CSP_ERR_NONE;
 }
 
-int csp_can2_tx(csp_iface_t * iface, uint16_t via, csp_packet_t * packet, int from_me) {
+static int csp_can2_tx(csp_iface_t * iface, uint16_t via, csp_packet_t * packet, int from_me) {
+	/* Avoid compiler warnings about unused parameter */
+	(void)via;
+	(void)from_me;
 
 	/* Loopback */
-	if (packet->id.dst == iface->addr) {
+	if (packet->id.dst == iface->addr || csp_addr_is_alias(packet->id.dst)) {
 		csp_qfifo_write(packet, iface, NULL);
 		return CSP_ERR_NONE;
 	}
