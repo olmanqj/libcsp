@@ -3,7 +3,7 @@ import os
 Import('env')
 
 APPNAME = 'libcsp'
-VERSION = '2.1'
+VERSION = '2.2'
 
 
 
@@ -20,8 +20,8 @@ AddOption('--enable-rdp',                action='store_true',  default=False, he
 AddOption('--enable-promisc',            action='store_true',  default=False, help='Enable promiscuous support')
 AddOption('--enable-crc32',              action='store_true',  default=False, help='Enable CRC32 support')
 AddOption('--enable-hmac',               action='store_true',  default=False, help='Enable HMAC-SHA1 support')
-AddOption('--enable-dedup',              action='store_true',  default=False, help='Enable packet deduplicator')
 AddOption('--enable-rtable',             action='store_true',  default=False, help='Allows to setup a list of static routes')
+AddOption('--enable-dedup',              action='store_true',  default=False, help='Enable packet deduplicator')
 AddOption('--enable-yaml',               action='store_true',  default=False, help='Enable YAML configurator')
 AddOption('--with-rdp-max-window',       type=int,             default=5,     help='Set maximum window size for RDP')
 AddOption('--with-max-bind-port',        type=int,             default=16,    help='Set maximum bindable port')
@@ -34,40 +34,46 @@ AddOption('--with-rtable-size',          type=int,             default=10,    he
 
 
 # Drivers and interfaces (requires external dependencies)
+valid_usart = ['linux', 'None']
 AddOption('--enable-if-zmqhub',     action='store_true', help='Enable ZMQ interface')
 AddOption('--enable-can-socketcan', action='store_true', help='Enable Linux socketcan driver')
-
-valid_usart = ['linux', 'None']
 AddOption('--with-driver-usart',    default=None,    metavar='DRIVER', choices=valid_usart, help='Build USART driver.' + str(valid_usart))
 
+# OS
 valid_os = ['posix', 'freertos']
 AddOption('--with-os',              default='posix', metavar='OS',  choices=valid_os, help='Set operating system. Must be one of:' + str(valid_os))
 
+# Fixup
+AddOption('--fixup-v1-zmq-little-endian', action='store_true', help='Use little-endian CSP ID for ZMQ with CSPv1')
+AddOption('--disable_kiss_crc', action='store_true', help='Disable the extra CRC in the KISS interface (legacy)')
 
-src_files = ['src/crypto/csp_hmac.c',
-                'src/crypto/csp_sha1.c',
-                'src/csp_buffer.c',
-                'src/csp_bridge.c',
-                'src/csp_conn.c',
-                'src/csp_crc32.c',
-                'src/csp_debug.c',
-                'src/csp_dedup.c',
-                'src/csp_iflist.c',
-                'src/csp_init.c',
-                'src/csp_io.c',
-                'src/csp_port.c',
-                'src/csp_qfifo.c',
-                'src/csp_route.c',
-                'src/csp_service_handler.c',
-                'src/csp_services.c',
-                'src/csp_id.c',
-                'src/csp_sfp.c',                                       
-                'src/interfaces/csp_if_lo.c',
-                'src/interfaces/csp_if_can.c',
-                'src/interfaces/csp_if_can_pbuf.c',
-                'src/interfaces/csp_if_kiss.c',
-                'src/interfaces/csp_if_i2c.c',
-                'src/interfaces/csp_if_tun.c']
+# Source files
+src_files = [
+    'src/crypto/csp_hmac.c',
+    'src/crypto/csp_sha1.c',
+    'src/csp_buffer.c',
+    'src/csp_bridge.c',
+    'src/csp_conn.c',
+    'src/csp_crc32.c',
+    'src/csp_debug.c',
+    'src/csp_dedup.c',
+    'src/csp_iflist.c',
+    'src/csp_init.c',
+    'src/csp_io.c',
+    'src/csp_port.c',
+    'src/csp_qfifo.c',
+    'src/csp_route.c',
+    'src/csp_service_handler.c',
+    'src/csp_services.c',
+    'src/csp_id.c',
+    'src/csp_sfp.c',
+    'src/interfaces/csp_if_lo.c',
+    'src/interfaces/csp_if_can.c',
+    'src/interfaces/csp_if_can_pbuf.c',
+    'src/interfaces/csp_if_kiss.c',
+    'src/interfaces/csp_if_i2c.c',
+    'src/interfaces/csp_if_tun.c'
+]
 
 libs = []
 
@@ -150,6 +156,10 @@ conf.Define("CSP_USE_PROMISC",        int(env.GetOption("enable_promisc")))
 conf.Define("CSP_USE_DEDUP",          int(env.GetOption("enable_dedup")))
 conf.Define("CSP_USE_RTABLE",         int(env.GetOption("enable_rtable")))
 conf.Define("CSP_BUFFER_ZERO_CLEAR",  int(env.GetOption("disable_buffer_zero_clear")))
+
+# Set defines for fixups
+conf.Define("CSP_FIXUP_V1_ZMQ_LITTLE_ENDIAN",  int(env.GetOption("fixup_v1_zmq_little_endian")))
+conf.Define("CSP_ENABLE_KISS_CRC",             int(not env.GetOption("disable_kiss_crc")))
 env = conf.Finish()
 
 
